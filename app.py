@@ -48,6 +48,7 @@ class App:
 
     def create_pipeline_inputs(self):
         whisper_params = self.default_params["whisper"]
+        subtitle_params = self.default_params.get("subtitle", {})
         vad_params = self.default_params["vad"]
         diarization_params = self.default_params["diarization"]
         uvr_params = self.default_params["bgm_separation"]
@@ -73,6 +74,9 @@ class App:
                                                             available_compute_types=self.whisper_inf.available_compute_types,
                                                             compute_type=self.whisper_inf.current_compute_type)
 
+        with gr.Accordion(_("Subtitle Segmentation"), open=False):
+            subtitle_inputs = SubtitleParams.to_gradio_inputs(defaults=subtitle_params)
+
         with gr.Accordion(_("Background Music Remover Filter"), open=False):
             uvr_inputs = BGMSeparationParams.to_gradio_input(defaults=uvr_params,
                                                              available_models=self.whisper_inf.music_separator.available_models,
@@ -87,7 +91,8 @@ class App:
                                                                     available_devices=self.whisper_inf.diarizer.available_device,
                                                                     device=self.whisper_inf.diarizer.device)
 
-        pipeline_inputs = [dd_model, dd_lang, cb_translate] + whisper_inputs + vad_inputs + diarization_inputs + uvr_inputs
+        pipeline_inputs = ([dd_model, dd_lang, cb_translate] + whisper_inputs + subtitle_inputs +
+                           vad_inputs + diarization_inputs + uvr_inputs)
 
         return (
             pipeline_inputs,

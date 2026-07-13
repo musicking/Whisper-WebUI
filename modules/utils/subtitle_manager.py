@@ -8,7 +8,7 @@ import zlib
 from typing import Callable, List, Optional, TextIO, Union, Dict, Tuple
 from datetime import datetime
 
-from modules.whisper.data_classes import Segment, Word
+from modules.whisper.data_classes import Segment, SubtitleParams, Word
 from .files_manager import read_file
 
 
@@ -65,6 +65,80 @@ def get_end(segments: List[dict]) -> Optional[float]:
         (w["end"] for s in reversed(segments) for w in reversed(s["words"])),
         segments[-1]["end"] if segments else None,
     )
+
+
+def split_segments_for_subtitles(
+    segments: List[Segment],
+    params: SubtitleParams,
+) -> List[Segment]:
+    """Split timed Whisper segments into compact subtitle cues.
+
+    Whisper's word timestamps provide the only reliable cue boundaries. VAD is
+    intentionally not used here: it removes silence before inference, while
+    subtitle segmentation is a presentation concern.
+    """
+    if not segments or not params.is_enabled:
+        return segments
+
+    max_chars = None
+    if params.max_line_width is not None and params.max_line_count is not None:
+        max_chars = params.max_line_width * params.max_line_count
+
+    result: List[Segment] = []
+
+    for source in segments:
+        words = source.words or []
+        if not words or any(
+            word.start is None or word.end is None or word.word is None
+            for word in words
+        ):
+            result.append(source)
+            continue
+
+        cue_words: List[Word] = []
+
+        def flush_cue():
+            nonlocal cue_words
+            if not cue_words:
+                return
+            cue_text = "".join(word.word for word in cue_words).strip()
+            if cue_text:
+                result.append(source.model_copy(update={
+                    "start": cue_words[0].start,
+                    "end": cue_words[-1].end,
+                    "text": cue_text,
+                    "tokens": None,
+                    "words": list(cue_words),
+                }))
+            cue_words = []
+
+        for word in words:
+            if cue_words:
+                candidate_text = "".join(item.word for item in cue_words + [word]).strip()
+                pause = word.start - cue_words[-1].end
+                duration = word.end - cue_words[0].start
+                exceeds_width = max_chars is not None and len(candidate_text) > max_chars
+                exceeds_duration = (
+                    params.max_segment_duration is not None
+                    and duration > params.max_segment_duration
+                )
+                exceeds_pause = (
+                    params.pause_threshold is not None
+                    and pause >= params.pause_threshold
+                )
+                if exceeds_width or exceeds_duration or exceeds_pause:
+                    flush_cue()
+
+            cue_words.append(word)
+            if (
+                params.split_on_punctuation
+                and word.word.rstrip().endswith(tuple(params.punctuation))
+            ):
+                flush_cue()
+
+        flush_cue()
+
+    return [segment.model_copy(update={"id": index}) for index, segment in enumerate(result)]
 
 
 class ResultWriter:

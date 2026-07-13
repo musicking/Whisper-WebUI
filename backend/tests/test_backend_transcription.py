@@ -45,6 +45,7 @@ def test_transcription_endpoint(
     result = completed_task.json()["result"]
     assert result, "Transcription text is empty"
 
-    wer = calculate_wer(TEST_ANSWER, result[0]["text"].strip().replace(",", "").replace(".", ""))
+    transcription = " ".join(segment["text"].strip() for segment in result)
+    wer = calculate_wer(TEST_ANSWER, transcription.replace(",", "").replace(".", ""))
     assert wer < 0.1, f"WER is too high, it's {wer}"
 

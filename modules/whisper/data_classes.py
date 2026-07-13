@@ -309,7 +309,10 @@ class WhisperParams(BaseParams):
         ge=0.0,
         description="Maximum initial timestamp"
     )
-    word_timestamps: bool = Field(default=False, description="Extract word-level timestamps")
+    word_timestamps: bool = Field(
+        default=True,
+        description="Extract word-level timestamps. Required for precise subtitle splitting"
+    )
     prepend_punctuations: Optional[str] = Field(
         default="\"'“¿([{-",
         description="Punctuations to merge with next word"
@@ -577,9 +580,98 @@ class WhisperParams(BaseParams):
         return inputs
 
 
+class SubtitleParams(BaseParams):
+    """Subtitle segmentation and rendering parameters."""
+    is_enabled: bool = Field(
+        default=True,
+        description="Enable word-timestamp-based subtitle segmentation"
+    )
+    max_line_width: Optional[int] = Field(
+        default=14,
+        gt=0,
+        description="Maximum characters per subtitle line (Whisper writer compatible)"
+    )
+    max_line_count: Optional[int] = Field(
+        default=1,
+        gt=0,
+        description="Maximum lines per subtitle cue (Whisper writer compatible)"
+    )
+    max_segment_duration: Optional[float] = Field(
+        default=5.0,
+        gt=0,
+        description="Maximum duration of one subtitle cue in seconds"
+    )
+    pause_threshold: Optional[float] = Field(
+        default=0.3,
+        ge=0,
+        description="Split a subtitle when the pause between timed words reaches this many seconds"
+    )
+    split_on_punctuation: bool = Field(
+        default=True,
+        description="Prefer subtitle breaks after sentence and phrase-ending punctuation"
+    )
+    punctuation: str = Field(
+        default="。！？!?；;，,：:",
+        description="Punctuation characters that may end a subtitle cue"
+    )
+    highlight_words: bool = Field(
+        default=False,
+        description="Underline each spoken word in SRT/VTT output"
+    )
+
+    @classmethod
+    def to_gradio_inputs(cls, defaults: Optional[Dict] = None) -> List[gr.components.base.FormComponent]:
+        defaults = defaults or {}
+        return [
+            gr.Checkbox(
+                label="Enable Compact Subtitle Segmentation",
+                value=defaults.get("is_enabled", cls.model_fields["is_enabled"].default),
+                info="Split long Whisper segments using word timestamps, punctuation, pauses, and limits."
+            ),
+            gr.Number(
+                label="Maximum Characters per Line",
+                value=defaults.get("max_line_width", cls.model_fields["max_line_width"].default),
+                precision=0,
+                info="Whisper max_line_width. Use 14 for compact Chinese subtitles."
+            ),
+            gr.Number(
+                label="Maximum Lines per Subtitle",
+                value=defaults.get("max_line_count", cls.model_fields["max_line_count"].default),
+                precision=0,
+                info="Whisper max_line_count. Use 1 for one-line subtitle cues."
+            ),
+            gr.Number(
+                label="Maximum Subtitle Duration (s)",
+                value=defaults.get("max_segment_duration", cls.model_fields["max_segment_duration"].default),
+                info="Split cues that would exceed this duration."
+            ),
+            gr.Number(
+                label="Pause Split Threshold (s)",
+                value=defaults.get("pause_threshold", cls.model_fields["pause_threshold"].default),
+                info="Split when the gap between adjacent timed words reaches this value."
+            ),
+            gr.Checkbox(
+                label="Split on Punctuation",
+                value=defaults.get("split_on_punctuation", cls.model_fields["split_on_punctuation"].default),
+                info="Prefer phrase boundaries such as Chinese commas and sentence endings."
+            ),
+            gr.Textbox(
+                label="Subtitle Split Punctuation",
+                value=defaults.get("punctuation", cls.model_fields["punctuation"].default),
+                info="Characters after which a subtitle cue may end."
+            ),
+            gr.Checkbox(
+                label="Highlight Words",
+                value=defaults.get("highlight_words", cls.model_fields["highlight_words"].default),
+                info="Generate karaoke-style word highlighting in SRT/VTT."
+            ),
+        ]
+
+
 class TranscriptionPipelineParams(BaseModel):
     """Transcription pipeline parameters"""
     whisper: WhisperParams = Field(default_factory=WhisperParams)
+    subtitle: SubtitleParams = Field(default_factory=SubtitleParams)
     vad: VadParams = Field(default_factory=VadParams)
     diarization: DiarizationParams = Field(default_factory=DiarizationParams)
     bgm_separation: BGMSeparationParams = Field(default_factory=BGMSeparationParams)
@@ -587,6 +679,7 @@ class TranscriptionPipelineParams(BaseModel):
     def to_dict(self) -> Dict:
         data = {
             "whisper": self.whisper.to_dict(),
+            "subtitle": self.subtitle.to_dict(),
             "vad": self.vad.to_dict(),
             "diarization": self.diarization.to_dict(),
             "bgm_separation": self.bgm_separation.to_dict()
@@ -600,10 +693,11 @@ class TranscriptionPipelineParams(BaseModel):
         See more about Gradio pre-processing: https://www.gradio.app/docs/components
         """
         whisper_list = self.whisper.to_list()
+        subtitle_list = self.subtitle.to_list()
         vad_list = self.vad.to_list()
         diarization_list = self.diarization.to_list()
         bgm_sep_list = self.bgm_separation.to_list()
-        return whisper_list + vad_list + diarization_list + bgm_sep_list
+        return whisper_list + subtitle_list + vad_list + diarization_list + bgm_sep_list
 
     @staticmethod
     def from_list(pipeline_list: List) -> 'TranscriptionPipelineParams':
@@ -612,6 +706,9 @@ class TranscriptionPipelineParams(BaseModel):
 
         whisper_list = data_list[0:len(WhisperParams.__annotations__)]
         data_list = data_list[len(WhisperParams.__annotations__):]
+
+        subtitle_list = data_list[0:len(SubtitleParams.__annotations__)]
+        data_list = data_list[len(SubtitleParams.__annotations__):]
 
         vad_list = data_list[0:len(VadParams.__annotations__)]
         data_list = data_list[len(VadParams.__annotations__):]
@@ -623,6 +720,7 @@ class TranscriptionPipelineParams(BaseModel):
 
         return TranscriptionPipelineParams(
             whisper=WhisperParams.from_list(whisper_list),
+            subtitle=SubtitleParams.from_list(subtitle_list),
             vad=VadParams.from_list(vad_list),
             diarization=DiarizationParams.from_list(diarization_list),
             bgm_separation=BGMSeparationParams.from_list(bgm_sep_list)

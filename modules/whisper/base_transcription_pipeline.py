@@ -122,7 +122,17 @@ class BaseTranscriptionPipeline(ABC):
 
         params = TranscriptionPipelineParams.from_list(list(pipeline_params))
         params = self.validate_gradio_values(params)
-        bgm_params, vad_params, whisper_params, diarization_params = params.bgm_separation, params.vad, params.whisper, params.diarization
+        bgm_params = params.bgm_separation
+        vad_params = params.vad
+        whisper_params = params.whisper
+        subtitle_params = params.subtitle
+        diarization_params = params.diarization
+
+        # Whisper's official subtitle constraints require word timestamps.
+        # Enabling compact subtitles therefore enables them even when an older
+        # mounted config still contains `word_timestamps: false`.
+        if subtitle_params.is_enabled:
+            whisper_params.word_timestamps = True
 
         if bgm_params.is_separate_bgm:
             music, audio, _ = self.music_separator.separate(
@@ -187,6 +197,9 @@ class BaseTranscriptionPipeline(ABC):
                 result = restored_result
             else:
                 logger.info("VAD detected no speech segments in the audio.")
+
+        if whisper_params.word_timestamps:
+            result = split_segments_for_subtitles(result, subtitle_params)
 
         if diarization_params.is_diarize:
             progress(0.99, desc="Diarizing speakers..")
@@ -257,9 +270,7 @@ class BaseTranscriptionPipeline(ABC):
         """
         try:
             params = TranscriptionPipelineParams.from_list(list(pipeline_params))
-            writer_options = {
-                "highlight_words": True if params.whisper.word_timestamps else False
-            }
+            writer_options = {"highlight_words": params.subtitle.highlight_words}
 
             if input_folder_path:
                 files = get_media_files(input_folder_path, include_sub_directory=include_subdirectory)
@@ -349,9 +360,7 @@ class BaseTranscriptionPipeline(ABC):
         """
         try:
             params = TranscriptionPipelineParams.from_list(list(pipeline_params))
-            writer_options = {
-                "highlight_words": True if params.whisper.word_timestamps else False
-            }
+            writer_options = {"highlight_words": params.subtitle.highlight_words}
 
             progress(0, desc="Loading Audio..")
             transcribed_segments, time_for_task = self.run(
@@ -411,9 +420,7 @@ class BaseTranscriptionPipeline(ABC):
         """
         try:
             params = TranscriptionPipelineParams.from_list(list(pipeline_params))
-            writer_options = {
-                "highlight_words": True if params.whisper.word_timestamps else False
-            }
+            writer_options = {"highlight_words": params.subtitle.highlight_words}
 
             progress(0, desc="Loading Audio from Youtube..")
             yt = get_ytdata(youtube_link)

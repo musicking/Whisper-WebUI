@@ -5,7 +5,7 @@ import os
 
 from modules.whisper.whisper_factory import WhisperFactory
 from modules.whisper.data_classes import *
-from modules.utils.subtitle_manager import read_file
+from modules.utils.subtitle_manager import WriteSRT
 from modules.utils.paths import WEBUI_DIR
 from test_config import *
 
@@ -58,8 +58,9 @@ def run_asr_pipeline(
         gr.Progress(),
         *hparams,
     )
-    subtitle = read_file(file_paths[0]).split("\n")
-    assert calculate_wer(answer, subtitle[2].strip().replace(",", "").replace(".", "")) < 0.1
+    subtitle_segments = WriteSRT(os.path.dirname(file_paths[0])).to_segments(file_paths[0])
+    subtitle = " ".join(segment.text.strip() for segment in subtitle_segments)
+    assert calculate_wer(answer, subtitle.replace(",", "").replace(".", "")) < 0.1
 
     if not is_pytube_detected_bot():
         subtitle_str, file_path = whisper_inferencer.transcribe_youtube(
@@ -79,8 +80,9 @@ def run_asr_pipeline(
         gr.Progress(),
         *hparams,
     )
-    subtitle = read_file(file_path).split("\n")
-    wer = calculate_wer(answer, subtitle[2].strip().replace(",", "").replace(".", ""))
+    subtitle_segments = WriteSRT(os.path.dirname(file_path)).to_segments(file_path)
+    subtitle = " ".join(segment.text.strip() for segment in subtitle_segments)
+    wer = calculate_wer(answer, subtitle.replace(",", "").replace(".", ""))
     assert wer < 0.1, f"WER is too high, it's {wer}"
 
 

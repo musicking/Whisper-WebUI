@@ -74,13 +74,21 @@ class WhisperInference(BaseTranscriptionPipeline):
                                        patience=params.patience,
                                        temperature=params.temperature,
                                        compression_ratio_threshold=params.compression_ratio_threshold,
+                                       condition_on_previous_text=params.condition_on_previous_text,
+                                       word_timestamps=params.word_timestamps,
+                                       prepend_punctuations=params.prepend_punctuations,
+                                       append_punctuations=params.append_punctuations,
                                        progress_callback=progress_callback,)["segments"]
         segments_result = []
         for segment in result:
+            words = None
+            if segment.get("words"):
+                words = [Word(**word) for word in segment["words"]]
             segments_result.append(Segment(
                 start=segment["start"],
                 end=segment["end"],
-                text=segment["text"]
+                text=segment["text"],
+                words=words,
             ))
 
         elapsed_time = time.time() - start_time
