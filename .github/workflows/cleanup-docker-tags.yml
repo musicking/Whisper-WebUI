@@ -1,0 +1,37 @@
+name: Cleanup obsolete Docker tags
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: docker
+
+    steps:
+      - name: Delete obsolete tags
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          TOKEN=$(curl --fail --silent --show-error \
+            --header "Content-Type: application/json" \
+            --data "$(jq -n --arg username "$DOCKER_USERNAME" --arg password "$DOCKER_PASSWORD" '{username: $username, password: $password}')" \
+            https://hub.docker.com/v2/users/login/ | jq -r .token)
+
+          for TAG in 1 1.0 sha-fc13e01; do
+            STATUS=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+              --request DELETE \
+              --header "Authorization: JWT $TOKEN" \
+              "https://hub.docker.com/v2/repositories/dockermaker0/whisper-webui/tags/$TAG/")
+
+            if [ "$STATUS" = "204" ] || [ "$STATUS" = "404" ]; then
+              echo "Removed tag: $TAG (HTTP $STATUS)"
+            else
+              echo "Failed to remove tag: $TAG (HTTP $STATUS)"
+              exit 1
+            fi
+          done

@@ -44,13 +44,9 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE_NAME }}
-          flavor: |
-            latest=auto
           tags: |
             type=semver,pattern={{version}},value=${{ env.VERSION }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION }}
-            type=semver,pattern={{major}},value=${{ env.VERSION }}
-            type=sha,prefix=sha-
+            type=raw,value=latest
 
       - name: Build and push image
         uses: docker/build-push-action@v6
