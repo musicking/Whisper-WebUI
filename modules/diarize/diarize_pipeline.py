@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 import os
-from pyannote.audio import Pipeline
+import warnings
 from typing import Optional, Union
 import torch
 
@@ -20,6 +20,17 @@ class DiarizationPipeline:
         use_auth_token=None,
         device: Optional[Union[str, torch.device]] = "cpu",
     ):
+        # pyannote.audio 3.x still probes TorchAudio's deprecated backend API
+        # during import. Load it only when diarization is actually requested so
+        # regular transcription starts faster and without irrelevant warnings.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"torchaudio\._backend\.list_audio_backends has been deprecated\..*",
+                category=UserWarning,
+            )
+            from pyannote.audio import Pipeline
+
         if isinstance(device, str):
             device = torch.device(device)
         self.model = Pipeline.from_pretrained(
