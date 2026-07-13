@@ -24,7 +24,10 @@ RUN apt-get update && \
 WORKDIR /Whisper-WebUI
 
 COPY . .
+COPY configs ./configs.default
 COPY --from=builder /Whisper-WebUI/venv /Whisper-WebUI/venv
+
+RUN chmod +x /Whisper-WebUI/docker-entrypoint.sh
 
 VOLUME [ "/Whisper-WebUI/models" ]
 VOLUME [ "/Whisper-WebUI/outputs" ]
@@ -32,4 +35,4 @@ VOLUME [ "/Whisper-WebUI/outputs" ]
 ENV PATH="/Whisper-WebUI/venv/bin:$PATH"
 ENV LD_LIBRARY_PATH=/Whisper-WebUI/venv/lib64/python3.11/site-packages/nvidia/cublas/lib:/Whisper-WebUI/venv/lib64/python3.11/site-packages/nvidia/cudnn/lib
 
-ENTRYPOINT [ "python", "app.py" ]
+ENTRYPOINT [ "/Whisper-WebUI/docker-entrypoint.sh" ]
