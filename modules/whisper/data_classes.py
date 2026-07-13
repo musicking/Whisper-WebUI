@@ -614,6 +614,10 @@ class SubtitleParams(BaseParams):
         default="。！？!?；;，,：:",
         description="Punctuation characters that may end a subtitle cue"
     )
+    strip_trailing_punctuation: bool = Field(
+        default=True,
+        description="Remove configured split punctuation from the end of subtitle cues"
+    )
     highlight_words: bool = Field(
         default=False,
         description="Underline each spoken word in SRT/VTT output"
@@ -659,6 +663,14 @@ class SubtitleParams(BaseParams):
                 label="Subtitle Split Punctuation",
                 value=defaults.get("punctuation", cls.model_fields["punctuation"].default),
                 info="Characters after which a subtitle cue may end."
+            ),
+            gr.Checkbox(
+                label="Remove Trailing Subtitle Punctuation",
+                value=defaults.get(
+                    "strip_trailing_punctuation",
+                    cls.model_fields["strip_trailing_punctuation"].default,
+                ),
+                info="Remove configured split punctuation after cue boundaries are determined."
             ),
             gr.Checkbox(
                 label="Highlight Words",

@@ -27,7 +27,7 @@ def test_splits_chinese_subtitles_on_punctuation_and_pause():
 
     result = split_segments_for_subtitles(segments=[segment], params=SubtitleParams())
 
-    assert [item.text for item in result] == phrases
+    assert [item.text for item in result] == [phrase.rstrip("\uff0c") for phrase in phrases]
     assert [(item.start, item.end) for item in result] == [
         (0.24, 0.64),
         (0.96, 2.08),
@@ -57,6 +57,47 @@ def test_splits_by_width_when_punctuation_is_missing():
     result = split_segments_for_subtitles([segment], params)
 
     assert [item.text for item in result] == ["abcdef", "ghijkl"]
+
+
+def test_keeps_decimal_percentage_together_across_timed_words():
+    prefix = "\u9053\u743c\u5de5\u4e1a\u6307\u6570\u4e0a\u6da80."
+    following = "\u6807\u666e500\u4e0a\u6da80."
+    segment = Segment(
+        start=8.58,
+        end=13.34,
+        text=prefix + "3%," + following + "4%,",
+        words=[
+            make_word(8.58, 10.28, prefix),
+            make_word(10.66, 11.02, "3%,"),
+            make_word(11.02, 12.60, following),
+            make_word(12.96, 13.34, "4%,"),
+        ],
+    )
+
+    result = split_segments_for_subtitles([segment], SubtitleParams())
+
+    assert [item.text for item in result] == [prefix + "3%", following + "4%"]
+    assert [(item.start, item.end) for item in result] == [
+        (8.58, 11.02),
+        (11.02, 13.34),
+    ]
+
+
+def test_keeps_grouped_number_together_before_splitting():
+    segment = Segment(
+        start=0,
+        end=2,
+        text="Revenue 1,000, next",
+        words=[
+            make_word(0, 0.8, "Revenue 1,"),
+            make_word(1.2, 1.5, "000,"),
+            make_word(1.5, 2, " next"),
+        ],
+    )
+
+    result = split_segments_for_subtitles([segment], SubtitleParams())
+
+    assert [item.text for item in result] == ["Revenue 1,000", "next"]
 
 
 def test_pipeline_parameter_list_round_trip_includes_subtitles():

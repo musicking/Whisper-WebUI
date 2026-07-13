@@ -86,6 +86,31 @@ def split_segments_for_subtitles(
 
     result: List[Segment] = []
 
+    def is_numeric_continuation(left: str, right: str) -> bool:
+        """Return True when a timed-word boundary is inside one numeric token."""
+        left = left.rstrip()
+        right = right.lstrip()
+        if not left or not right:
+            return False
+
+        # Faster-Whisper may time `0.` and `3%` separately. A pause at that
+        # alignment boundary must not split the decimal or percentage.
+        if re.search(r"\d[.．]$", left) and re.match(r"\d", right):
+            return True
+        if re.search(r"\d$", left) and re.match(r"[.．]\d", right):
+            return True
+        if re.search(r"\d$", left) and re.match(r"[%％‰]", right):
+            return True
+
+        # Preserve grouped numbers such as timed words `1,` + `000`.
+        if re.search(r"\d[,]$", left) and re.match(r"\d{3}(?:\D|$)", right):
+            return True
+
+        # Keep a sign or currency symbol attached to its following number.
+        if re.search(r"[-+¥￥$€£]$", left) and re.match(r"\d", right):
+            return True
+        return False
+
     for source in segments:
         words = source.words or []
         if not words or any(
@@ -102,6 +127,8 @@ def split_segments_for_subtitles(
             if not cue_words:
                 return
             cue_text = "".join(word.word for word in cue_words).strip()
+            if params.strip_trailing_punctuation:
+                cue_text = cue_text.rstrip(params.punctuation).rstrip()
             if cue_text:
                 result.append(source.model_copy(update={
                     "start": cue_words[0].start,
@@ -117,6 +144,14 @@ def split_segments_for_subtitles(
                 candidate_text = "".join(item.word for item in cue_words + [word]).strip()
                 pause = word.start - cue_words[-1].end
                 duration = word.end - cue_words[0].start
+                numeric_continuation = is_numeric_continuation(
+                    "".join(item.word for item in cue_words),
+                    word.word,
+                )
+                punctuation_boundary = (
+                    params.split_on_punctuation
+                    and cue_words[-1].word.rstrip().endswith(tuple(params.punctuation))
+                )
                 exceeds_width = max_chars is not None and len(candidate_text) > max_chars
                 exceeds_duration = (
                     params.max_segment_duration is not None
@@ -126,15 +161,15 @@ def split_segments_for_subtitles(
                     params.pause_threshold is not None
                     and pause >= params.pause_threshold
                 )
-                if exceeds_width or exceeds_duration or exceeds_pause:
+                if not numeric_continuation and (
+                    punctuation_boundary
+                    or exceeds_width
+                    or exceeds_duration
+                    or exceeds_pause
+                ):
                     flush_cue()
 
             cue_words.append(word)
-            if (
-                params.split_on_punctuation
-                and word.word.rstrip().endswith(tuple(params.punctuation))
-            ):
-                flush_cue()
 
         flush_cue()
 

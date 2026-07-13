@@ -41,6 +41,7 @@ subtitle:
   pause_threshold: 0.3
   split_on_punctuation: true
   punctuation: "。！？!?；;，,：:"
+  strip_trailing_punctuation: true
   highlight_words: false
 
 vad:
