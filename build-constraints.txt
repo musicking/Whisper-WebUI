@@ -1,0 +1,3 @@
+# jhj0517-whisper imports pkg_resources from its setup.py.
+# pkg_resources was removed from setuptools 82.
+setuptools<82
