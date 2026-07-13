@@ -2,7 +2,10 @@ services:
   whisper-webui:
     container_name: whisper-webui
     build: .
-    image: jhj0517/whisper-webui:latest
+    # Always build this checkout instead of silently reusing the upstream
+    # jhj0517/whisper-webui:latest image, whose dependencies may be stale.
+    image: whisper-webui:local
+    pull_policy: build
 
     volumes:
       # You can mount the container's volume paths to directory paths on your local machine.

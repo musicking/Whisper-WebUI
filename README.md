@@ -53,22 +53,21 @@ The app is able to run with [Pinokio](https://github.com/pinokiocomputer/pinokio
 2. Git clone the repository
 
 ```sh
-git clone https://github.com/jhj0517/Whisper-WebUI.git
+git clone https://github.com/musicking/Whisper-WebUI.git
+cd Whisper-WebUI
 ```
 
-3. Build the image ( Image is about 7GB~ )
+3. Build and run the container (the image is about 7GB)
 
 ```sh
-docker compose build 
+docker compose up -d --build
 ```
 
-4. Run the container 
+The Compose configuration builds the checked-out source as `whisper-webui:local`.
+This avoids accidentally running a stale upstream image with incompatible
+PyTorch/TorchAudio dependencies.
 
-```sh
-docker compose up
-```
-
-5. Connect to the WebUI with your browser at `http://localhost:7860`
+4. Connect to the WebUI with your browser at `http://localhost:7860`
 
 If needed, update the [`docker-compose.yaml`](https://github.com/jhj0517/Whisper-WebUI/blob/master/docker-compose.yaml) to match your environment.
 
